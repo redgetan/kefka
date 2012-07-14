@@ -30,6 +30,7 @@ Gem::Specification.new do |s|
     "bin/kefka",
     "examples/sample1.rb",
     "examples/trace_specific_lines.rb",
+    "kefka.gemspec",
     "lib/kefka.rb",
     "test/helper.rb",
     "test/test_kefka.rb"
