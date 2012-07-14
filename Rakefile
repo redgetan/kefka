@@ -17,8 +17,8 @@ Jeweler::Tasks.new do |gem|
   gem.name = "kefka"
   gem.homepage = "http://github.com/redgetan/kefka"
   gem.license = "MIT"
-  gem.summary = %Q{TODO: one-line summary of your gem}
-  gem.description = %Q{TODO: longer description of your gem}
+  gem.summary = %Q{A tool for reading an unfamiliar codebase }
+  gem.description = %Q{ It traces the execution path of a program and displays the source code of each method call in the callgraph }
   gem.email = "redge.tan@gmail.com"
   gem.authors = ["Reginald Tan"]
   # dependencies defined in Gemfile
@@ -31,16 +31,6 @@ Rake::TestTask.new(:test) do |test|
   test.pattern = 'test/**/test_*.rb'
   test.verbose = true
 end
-
-require 'rcov/rcovtask'
-Rcov::RcovTask.new do |test|
-  test.libs << 'test'
-  test.pattern = 'test/**/test_*.rb'
-  test.verbose = true
-  test.rcov_opts << '--exclude "gems/*"'
-end
-
-task :default => :test
 
 require 'rdoc/task'
 Rake::RDocTask.new do |rdoc|

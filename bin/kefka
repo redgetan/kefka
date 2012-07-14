@@ -1,0 +1,18 @@
+#!/usr/bin/env ruby
+
+$LOAD_PATH.unshift("#{File.expand_path(File.dirname(__FILE__))}/../lib")
+
+require 'kefka'
+require 'pp'
+
+if ARGV.count < 1
+  puts "Usage: kefka [path_to_file]"
+  exit
+end
+
+path = ARGV[0]
+file = File.open(path)
+
+Kefka.trace(file, :callgraph_handler)
+Kefka.display
+
