@@ -1,7 +1,19 @@
+require 'forwardable'
+require 'coderay'
+
+# set_trace_func runs
+#   on_event:
+#     create/update method_object (hash_table)
+#     create/update callgraph     (tree)
+#       on_event:
+#         stream serialized changes to Front-End Visualizer (Web-page)
+#           on_event:
+#             use d3.js to show resulting graph (tree)
+#
 module Kefka
 
   @@values = {}
-  @@method_source = {}
+  @@method_table = {}
 
   class << self
 
@@ -36,11 +48,11 @@ module Kefka
         #   1. line
         #   2. file
         key = "#{classname}_#{id}"
-        @@method_source[key] = [file, caller[1], line]
+        @@method_table[key] = [file, caller[1], line]
       when "line"
       when "return"
         key = "#{classname}_#{id}"
-        @@method_source[key] << line if @@method_source[key]
+        @@method_table[key] << line if @@method_table[key]
       else
         # do nothing
       end
@@ -78,7 +90,6 @@ module Kefka
     end
 
     def trace(file, handler = :callgraph_handler)
-      puts "\nTracing Execution using #{handler}...\n\n"
       start(handler)
       file.rewind if file.eof?
       code = file.read
@@ -86,31 +97,38 @@ module Kefka
       stop
     end
 
+
     def method_graph
-      @@method_source
+      # unless already includes source
+      unless @@method_table.values.first.length == 5
+        @@method_table.each do |key,value|
+
+          file, parent_caller, start_line, finish_line = value
+
+          source = syntax_highlight(extract_source(file, start_line, finish_line))
+          value << source
+        end
+      end
+
+      @@method_table
     end
 
-    def display
-      puts "\n==== Generating Method Callgraph...\n\n"
-      @@method_source.each do |meth,props|
-        puts
-        puts meth
-        puts
+    def syntax_highlight(text)
+     CodeRay.scan(text, :ruby).div(:line_numbers => :table)
+    end
 
-        file, parent_caller, start_line, finish_line = props
+    def extract_source(file,start_line, finish_line)
+      code = ""
 
-        File.open(file) { |f|
-          (start_line - 1).times { f.readline }
+      File.open(file) do |f|
+        (start_line - 1).times { f.readline }
 
-          code = ""
-          (finish_line - start_line + 1).times {
-            code << f.readline
-          }
-          puts code
+        (finish_line - start_line + 1).times {
+          code << f.readline
         }
-
-        puts
       end
+
+      code
     end
 
     def values

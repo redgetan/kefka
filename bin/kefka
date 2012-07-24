@@ -14,5 +14,5 @@ path = ARGV[0]
 file = File.open(path)
 
 Kefka.trace(file, :callgraph_handler)
-Kefka.display
+puts Kefka.method_graph
 
