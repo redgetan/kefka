@@ -1,3 +1,9 @@
+class Book
+  def initialize
+    @store = [1,2]
+  end
+end
+
 class Displayer
   def initialize(out)
     @out = out
@@ -12,6 +18,7 @@ def hello
   num = init
   x = 4
   x = x * 2
+  b = Book.new
   display = Displayer.new($stdout)
   display.puts "Hello #{num}"
 end

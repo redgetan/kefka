@@ -1,5 +1,6 @@
 require 'forwardable'
 require 'coderay'
+require 'pry'
 
 # set_trace_func runs
 #   on_event:
@@ -12,7 +13,7 @@ require 'coderay'
 #
 module Kefka
 
-  @@values = {}
+  @@local_values = {}
   @@method_table = {}
 
   class << self
@@ -36,6 +37,8 @@ module Kefka
     # Things to IGNORE
     # 1. loading of rubygems/libraries
     def callgraph_handler(event, file, line, id, binding, classname)
+      puts "#{event} - #{file}:#{line} #{classname} #{id}" if $DEBUG
+
       # do not trace current file (TODO: and anything in this library)
       return if file == __FILE__
       case event
@@ -47,11 +50,16 @@ module Kefka
         # perhaps include:
         #   1. line
         #   2. file
-        key = "#{classname}_#{id}"
-        @@method_table[key] = [file, caller[1], line]
+        key = "#{classname}_#{id}_#{file}_#{line}"
+        caller[1] =~ /(\S+?):(\d+).*`(.+)'/
+        called_from = { :file => $1, :line => $2, :method => $3 }
+
+        @@method_table[key] = [file, called_from, line]
       when "line"
       when "return"
-        key = "#{classname}_#{id}"
+        key = @@method_table.keys
+                            .select { |k| k =~ Regexp.new("#{classname}_#{id}_#{file}") }
+                            .first
         @@method_table[key] << line if @@method_table[key]
       else
         # do nothing
@@ -60,7 +68,8 @@ module Kefka
       puts "#{e.message} from  --  #{e.backtrace.join("\n")}"
     end
 
-    def locals_values_handler(event, file, line, id, binding, classname)
+    def local_values_handler(event, file, line, id, binding, classname)
+      puts "#{event} - #{file}:#{line} #{classname} #{id}" if $DEBUG
 
       return if file == __FILE__
 
@@ -74,8 +83,8 @@ module Kefka
         #     - but these variables may be overwritten by the traced program,
         #       excluding them would mean not displaying certain relevant
         #       vars in that program
-        key = "#{file}_#{line}".to_sym
-        @@values[key] = get_values_of_locals_from_binding(binding)
+        key = "#{classname}_#{id}_#{file}_#{line}"
+        @@local_values[key] = get_values_of_locals_from_binding(binding)
       else
         # do nothing
       end
@@ -98,14 +107,15 @@ module Kefka
     end
 
 
-    def method_graph
+    def method_table
       # unless already includes source
       unless @@method_table.values.first.length == 5
         @@method_table.each do |key,value|
 
           file, parent_caller, start_line, finish_line = value
 
-          source = syntax_highlight(extract_source(file, start_line, finish_line))
+          source = extract_source(file, start_line, finish_line)
+          source = syntax_highlight_with_line_numbers(source, start_line)
           value << source
         end
       end
@@ -113,10 +123,12 @@ module Kefka
       @@method_table
     end
 
-    def syntax_highlight(text)
-     CodeRay.scan(text, :ruby).div(:line_numbers => :table)
+    def syntax_highlight_with_line_numbers(text, start_line)
+      CodeRay.scan(text, :ruby)
+             .div(:line_numbers => :table, :line_number_start => start_line)
     end
 
+    # what if finish_line is missing
     def extract_source(file,start_line, finish_line)
       code = ""
 
@@ -131,8 +143,8 @@ module Kefka
       code
     end
 
-    def values
-      @@values
+    def local_values
+      @@local_values
     end
 
   end
