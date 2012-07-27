@@ -80,7 +80,7 @@ var createCodeBubbles = function(data) {
            .css("left", xPos)
            .css("top",  yPos);
 
-    yPos += 150;
+    yPos += $bubble.height();
 
     // add column for displaying local values
     var lineCount = $bubble.find("td.line-numbers a").length;
