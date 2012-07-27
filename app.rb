@@ -14,10 +14,10 @@ get '/callgraph' do
   path = "examples/sample_a.rb"
   file = File.open(path)
 
-  @kefka = Kefka.new
-  @kefka.trace(file, :callgraph_handler)
+  @tracer = Kefka::Tracer.new
+  @tracer.trace(file, :callgraph_handler)
 
-  results = @kefka.method_table
+  results = @tracer.method_table
 
   hash = Hash.new
 
@@ -28,7 +28,7 @@ get '/callgraph' do
       v[1],
       v[2],
       v[3],
-      @kefka.syntax_highlight_with_line_numbers(source,start_line)
+      @tracer.syntax_highlight_with_line_numbers(source,start_line)
     ]
   }
 
@@ -42,9 +42,9 @@ get '/locals' do
   path = "examples/sample_a.rb"
   file = File.open(path)
 
-  kefka = Kefka.new
-  kefka.trace(file, :local_values_handler)
-  results = kefka.local_values
+  tracer = Kefka::Tracer.new
+  tracer.trace(file, :local_values_handler)
+  results = tracer.local_values
   json = Yajl::Encoder.encode(results)
   json
 end

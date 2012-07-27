@@ -12,7 +12,9 @@ end
 path = ARGV[0]
 file = File.open(path)
 
-kefka = Kefka.new
-kefka.trace(file, :callgraph_handler)
-ap kefka.method_table
+tracer = Kefka::Tracer.new
+tracer.trace(file, :callgraph_handler)
+ap tracer.method_table
+puts tracer.instance_variable_get(:@class)
+puts tracer.instance_variable_get(:@end)
 
