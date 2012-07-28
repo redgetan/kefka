@@ -3,6 +3,7 @@
 $LOAD_PATH.unshift("#{File.expand_path(File.dirname(__FILE__))}/../lib")
 
 require 'kefka'
+require 'pp'
 
 if ARGV.count < 1
   puts "Usage: kefka [path_to_file]"
@@ -14,7 +15,5 @@ file = File.open(path)
 
 tracer = Kefka::Tracer.new
 tracer.trace(file, :callgraph_handler)
-ap tracer.method_table
-puts tracer.instance_variable_get(:@class)
-puts tracer.instance_variable_get(:@end)
+pp tracer.method_table
 

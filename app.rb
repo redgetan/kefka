@@ -3,6 +3,7 @@ $LOAD_PATH.unshift("#{File.expand_path(File.dirname(__FILE__))}/lib")
 require 'sinatra'
 require 'kefka'
 require 'yajl'
+require 'yajl/json_gem'
 
 get '/' do
   erb :index
@@ -19,21 +20,15 @@ get '/callgraph' do
 
   results = @tracer.method_table
 
-  hash = Hash.new
-
-  results.each { |k,v|
-    source, start_line = v[4], v[2]
-    hash[k] = [
-      v[0],
-      v[1],
-      v[2],
-      v[3],
-      @tracer.syntax_highlight_with_line_numbers(source,start_line)
-    ]
+  results.reject! { |k,v|
+    if k =~ /prelude/
+      @tracer.logger.warn("One of methods in table contains Thread method wherein" +
+                          "source_location is invalid - <internal:prelude>")
+      true
+    end
   }
-
-  json = Yajl::Encoder.encode(hash)
-  json
+  results.values.each { |method| method.syntax_highlight_source = true }
+  results.to_json
 end
 
 get '/locals' do
@@ -45,6 +40,5 @@ get '/locals' do
   tracer = Kefka::Tracer.new
   tracer.trace(file, :local_values_handler)
   results = tracer.local_values
-  json = Yajl::Encoder.encode(results)
-  json
+  results.to_json
 end

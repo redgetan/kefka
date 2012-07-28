@@ -1,11 +1,79 @@
 require 'coderay'
 require 'pry'
-require 'awesome_print'
 require 'logger'
 
 class Kefka
 
+  class Caller
+    attr_reader :file, :line, :method_id
+
+    def initialize(called_from)
+      called_from =~ /(\S+?):(\d+).*`(.+)'/
+      @file = $1
+      @line = $2
+      @method_id = $3
+    end
+
+    def to_hash
+      { :file => @file, :line => @line, :method => @method_id }
+    end
+  end
+
+  class Method
+
+    attr_reader :classname, :id, :file, :line, :caller
+    attr_accessor :syntax_highlight_source
+
+    def initialize(options={})
+      @classname = options[:classname]
+      @id        = options[:id]
+      @file      = options[:file]
+      @line      = options[:line]
+      @caller    = Caller.new(options[:caller])
+    end
+
+    def source_location
+      return nil unless @file && @line
+      [@file,@line]
+    end
+
+    def end_line
+      @line + source.lines.count - 1
+    end
+
+    def source
+      @source ||= MethodSource.source_helper(source_location)
+    end
+
+    def source_with_syntax_highlighting
+      text = source
+      CodeRay.scan(text, :ruby)
+             .div(:line_numbers => :table, :line_number_start => @line)
+    end
+
+    def to_json(*a)
+      result = {
+        :classname => @classname,
+        :id => @id,
+        :file => @file,
+        :line => @line,
+        :end_line => end_line,
+        :caller => @caller.to_hash
+      }
+
+      if @syntax_highlight_source
+        result.merge!({ :source => source_with_syntax_highlighting })
+      else
+        result.merge!({ :source => source })
+      end
+
+      result.to_json(*a)
+    end
+  end
+
   class Tracer
+
+    attr_reader :method_table, :local_values, :logger
 
     def initialize(log_level = Logger::INFO)
       @method_table = {}
@@ -35,17 +103,13 @@ class Kefka
       !@event_disable.empty?
     end
 
-    # Things to IGNORE
-    # 1. loading of rubygems/libraries
     def callgraph_handler(event, file, line, id, binding, classname)
       return if file == __FILE__
 
       @logger.info "#{event} - #{file}:#{line} #{classname} #{id}"
 
       if disable_event_handlers?
-        if event == "end"
-          @event_disable.pop
-        end
+        @event_disable.pop if event == "end"
         return
       end
 
@@ -53,24 +117,14 @@ class Kefka
       when "class"
         @event_disable << true
       when "call"
-        # mark the start of method call
+         method = Method.new(:classname => classname,
+                             :id => id,
+                             :file => file,
+                             :line => line,
+                             :caller => caller[1])
 
-        # key must be uniquely identifiable -
-        # Class methodname is not enough
-        # perhaps include:
-        #   1. line
-        #   2. file
-        key = "#{classname}_#{id}_#{file}_#{line}"
-        caller[1] =~ /(\S+?):(\d+).*`(.+)'/
-        called_from = { :file => $1, :line => $2, :method => $3 }
-
-        @method_table[key] = [file, called_from, line]
-      when "line"
-      when "return"
-        key = @method_table.keys
-                           .select { |k| k =~ Regexp.new(Regexp.escape("#{classname}_#{id}_#{file}")) }
-                           .first
-        @method_table[key] << line if @method_table[key]
+         key = method.source_location.join(":")
+         @method_table[key] = method
       else
         # do nothing
       end
@@ -80,14 +134,18 @@ class Kefka
     end
 
     def local_values_handler(event, file, line, id, binding, classname)
-      return if file == __FILE__ || halt_trace?
+      # skip variables that should not be tracked
+      # 1. anything in current lib (i.e __FILE__)
+      # 2. all local variables that are in TOP LEVEL BINDING before tracing
+      #     - but these variables may be overwritten by the traced program,
+      #       excluding them would mean not displaying certain relevant
+      #       vars in that program
+      return if file == __FILE__
 
       @logger.info "#{event} - #{file}:#{line} #{classname} #{id}" if $DEBUG
 
       if disable_event_handlers?
-        if event == "end"
-          @event_disable.pop
-        end
+        @event_disable.pop if event == "end"
         return
       end
 
@@ -96,25 +154,11 @@ class Kefka
         @event_disable << true
       when "call"
       when "line"
-        # variables that should not be tracked
-        # 1. anything in current lib
-        # 2. all local variables that are in TOP LEVEL BINDING before tracing
-        #     - but these variables may be overwritten by the traced program,
-        #       excluding them would mean not displaying certain relevant
-        #       vars in that program
-        key = "#{classname}_#{id}_#{file}_#{line}"
+        key = [file, line].join(":")
         @local_values[key] = get_values_of_locals_from_binding(binding)
       else
         # do nothing
       end
-    end
-
-    def start(handler)
-      set_trace_func method(handler).to_proc
-    end
-
-    def stop
-      set_trace_func nil
     end
 
     def trace(file, handler = :callgraph_handler)
@@ -125,50 +169,12 @@ class Kefka
       stop
     end
 
-    def method_table
-      # unless already includes source
-      unless @method_table.values.first.length == 5
-        @method_table.each do |key,value|
-
-          file, parent_caller, start_line, finish_line = value
-
-          if finish_line.nil?
-            # something have gone wrong
-            puts "Couldn't find finish_line for method defined at #{file}:#{start_line}"
-            ap @method_table
-            raise StandardError, "finish_line is missing"
-          end
-
-          source = extract_source(file, start_line, finish_line)
-          value << source
-        end
-      end
-
-      @method_table
+    def start(handler)
+      set_trace_func method(handler).to_proc
     end
 
-    def syntax_highlight_with_line_numbers(text, start_line)
-      CodeRay.scan(text, :ruby)
-             .div(:line_numbers => :table, :line_number_start => start_line)
-    end
-
-    # what if finish_line is missing
-    def extract_source(file,start_line, finish_line)
-      code = ""
-
-      File.open(file) do |f|
-        (start_line - 1).times { f.readline }
-
-        (finish_line - start_line + 1).times {
-          code << f.readline
-        }
-      end
-
-      code
-    end
-
-    def local_values
-      @local_values
+    def stop
+      set_trace_func nil
     end
 
   end

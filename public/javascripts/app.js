@@ -1,25 +1,3 @@
-//var r = Raphael(0, 0, 1000, 1200);
-var Method = {
-  FILE: 0,
-  CALLER: 1,
-  START_LINE: 2,
-  FINISH_LINE: 3,
-  SOURCE: 4
-}
-
-var METHOD_SOURCE = 4;
-var FILE = 0;
-
-// calculate position of code bubble
-// given caller (examples/sample_a.rb:21:in `new')
-// get file, line
-// determine what method am I in given file,line
-// record = method_table.select { |k,v| v[0] == file && (line > v[2] && line > v[4]) }
-// key = record.keys.first
-// key for code bubble
-//
-// get code bubble position
-//
 var jqSelectorEscape = function(text) {
   return text.replace(/([!"#$%&'()*+,./:;<=>?@[\]^`{|}~])/g, "\\$&");
 };
@@ -32,18 +10,18 @@ var getCoordFromCaller = function(caller, methodTable) {
 
   for (var key in methodTable)
   {
-    if ( methodTable[key][Method.FILE]        == caller.file &&
-         methodTable[key][Method.START_LINE]   < caller.line &&
-         methodTable[key][Method.FINISH_LINE]  > caller.line )
+    if ( methodTable[key].file        == caller.file &&
+         methodTable[key].line         < caller.line &&
+         methodTable[key].end_line     > caller.line )
     {
-      var classnameIdFileLine = key;
-      var $sourceBubble = $("table#" + jqSelectorEscape(classnameIdFileLine));
+      var $sourceBubble = $("table#" + jqSelectorEscape(key));
       return $sourceBubble.position();
     }
   }
   // didnt find a match
-  alert("couldnt find which method this method orignated from ");
-  return "fuck";
+  console.log("warning: couldnt match " + caller.method + " " +
+              caller.file + ":" + caller.line + " to a method in methodTable");
+  return { x: 10, y: 10 };
 };
 
 var createCodeBubbles = function(data) {
@@ -57,21 +35,17 @@ var createCodeBubbles = function(data) {
   for (var key in methodTable)
   {
 
-    var caller = methodTable[key][Method.CALLER];
-    var code = methodTable[key][Method.SOURCE];
-    var file = methodTable[key][Method.FILE];
-    var startLine = methodTable[key][Method.START_LINE];
-
-    //var bubble = r.rect(x, y, width, height);
-    //bubble.attr("fill", "#f00");
+    var caller = methodTable[key].caller;
+    var code = methodTable[key].source;
+    var file = methodTable[key].file;
+    var line = methodTable[key].line;
 
     $("#methodGraph").append(code);
 
     var $bubble = $("#methodGraph table.CodeRay").last();
 
     // set id for bubble table
-    var classnameIdFileLine = key;
-    $bubble.attr("id",classnameIdFileLine);
+    $bubble.attr("id",key);
 
     var pos = getCoordFromCaller(caller, methodTable);
     xPos = pos.left + 200;
@@ -88,7 +62,7 @@ var createCodeBubbles = function(data) {
     var column = "<td class='locals'>";
     column += "<pre>";
 
-    for (var i = startLine; i < startLine + lineCount; i++)
+    for (var i = line; i < line + lineCount; i++)
     {
       column += "<span id='line" + i + "'></span>\n";
     }
@@ -98,14 +72,6 @@ var createCodeBubbles = function(data) {
 
     var $code = $bubble.find("td.code");
     $code.after(column);
-
-
-    // calculate length of longest line in method source,
-    // use that line as width of code bubble
-    //
-    //r.text(x + 10,y + 10, text)
-     //.attr("font-size", 14)
-     //.attr("text-anchor","start");
 
   }
 };
@@ -129,16 +95,15 @@ var displayLocalValues = function(data) {
       values += localValues[key][local];
     }
 
-    var keys = key.split("_");
-    var line = keys.pop();
+    var keys = key.split(":");
+    var file = keys[0];
+    var line = keys[1];
 
-    var classnameIdFile = keys.join("_");
-
-    var $bubble = $("table").filter(function(){
-      return this.id.match(classnameIdFile);
+    var $bubbles = $("table").filter(function(){
+      return this.id.match(file);
     });
 
-    var $line = $bubble.find("td.locals span#line" + line).first();
+    var $line = $bubbles.find("td.locals span#line" + line).first();
     $line.html(values);
   }
 };
