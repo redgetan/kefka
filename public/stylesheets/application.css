@@ -6,3 +6,9 @@ table.CodeRay td.line-numbers a {
   text-decoration: none;
   color: #A8A8A8;
 }
+
+span.methodHeader {
+  font-family: monospace;
+  color: #A8A8A8;
+}
+

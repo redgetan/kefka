@@ -2,11 +2,14 @@ var jqSelectorEscape = function(text) {
   return text.replace(/([!"#$%&'()*+,./:;<=>?@[\]^`{|}~])/g, "\\$&");
 };
 
-var getCoordFromCaller = function(caller, methodTable) {
+var getXCoordFromCaller = function(caller, methodTable) {
   if (caller.method == "<main>")
   {
-    return { x: 10, y: 10 };
+    return 10;
   }
+
+  console.log(caller.method + " " +
+              caller.file + ":" + caller.line);
 
   for (var key in methodTable)
   {
@@ -14,14 +17,14 @@ var getCoordFromCaller = function(caller, methodTable) {
          methodTable[key].line         < caller.line &&
          methodTable[key].end_line     > caller.line )
     {
-      var $sourceBubble = $("table#" + jqSelectorEscape(key));
-      return $sourceBubble.position();
+      var $sourceBubble = $("div.bubble#" + jqSelectorEscape(key));
+      return $sourceBubble.position().left + 200;
     }
   }
   // didnt find a match
   console.log("warning: couldnt match " + caller.method + " " +
               caller.file + ":" + caller.line + " to a method in methodTable");
-  return { x: 10, y: 10 };
+  return 10;
 };
 
 var createCodeBubbles = function(data) {
@@ -31,24 +34,25 @@ var createCodeBubbles = function(data) {
 
   var xPos;
   var yPos = 0;
+  var bubble, classname, id, code, file, line, caller, header;
 
   for (var key in methodTable)
   {
+    bubble = "<div class='bubble'></div>";
+    $(bubble).appendTo("#methodGraph");
 
-    var caller = methodTable[key].caller;
-    var code = methodTable[key].source;
-    var file = methodTable[key].file;
-    var line = methodTable[key].line;
-
-    $("#methodGraph").append(code);
-
-    var $bubble = $("#methodGraph table.CodeRay").last();
+    $bubble = $("#methodGraph .bubble").last();
+    $bubble.append(methodTable[key].source);
 
     // set id for bubble table
     $bubble.attr("id",key);
 
-    var pos = getCoordFromCaller(caller, methodTable);
-    xPos = pos.left + 200;
+    // set header of bubble div (classname#id file:line)
+    header = methodTable[key].file + ":" + methodTable[key].line;
+    $bubble.prepend("<pre><span class='methodHeader'>" + header + "</span></pre>");
+
+    xPos = getXCoordFromCaller(methodTable[key].caller, methodTable);
+
     // position bubble table
     $bubble.css("position", "absolute")
            .css("left", xPos)
@@ -62,7 +66,7 @@ var createCodeBubbles = function(data) {
     var column = "<td class='locals'>";
     column += "<pre>";
 
-    for (var i = line; i < line + lineCount; i++)
+    for (var i = methodTable[key].line; i < methodTable[key].line + lineCount; i++)
     {
       column += "<span id='line" + i + "'></span>\n";
     }
@@ -99,7 +103,7 @@ var displayLocalValues = function(data) {
     var file = keys[0];
     var line = keys[1];
 
-    var $bubbles = $("table").filter(function(){
+    var $bubbles = $("div.bubble").filter(function(){
       return this.id.match(file);
     });
 

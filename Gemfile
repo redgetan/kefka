@@ -4,6 +4,7 @@ gem "yajl-ruby"
 gem "coderay"
 gem "sinatra"
 gem "method_source"
+gem "rgl"
 
 group :development do
   gem "pry"

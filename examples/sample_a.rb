@@ -1,9 +1,10 @@
 require 'forwardable'
 require 'date'
+require 'net/http'
 
 class Book
-  #extend Forwardable
-  #def_delegators :@store, :first, :last
+  extend Forwardable
+  def_delegators :@store, :first, :last
 
   def initialize
     @store = [1,2]
@@ -30,9 +31,9 @@ def hello
   x = x * 2
   b = Book.new
 
-  #if b.first
-    #puts "lol"
-  #end
+  if b.first
+    puts "lol"
+  end
 
   c = b[]
   display = Displayer.new($stdout)
@@ -55,4 +56,6 @@ def time_diff
 end
 
 hello
+
+Net::HTTP.get_response(URI.parse("http://www.twitter.com")).body
 

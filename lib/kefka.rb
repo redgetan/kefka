@@ -1,5 +1,7 @@
 require 'coderay'
 require 'pry'
+require 'rgl'
+
 require 'logger'
 
 class Kefka
@@ -42,7 +44,12 @@ class Kefka
     end
 
     def source
-      @source ||= MethodSource.source_helper(source_location)
+      @source ||= begin
+                    MethodSource.source_helper(source_location)
+                  rescue MethodSource::SourceNotFoundError => e
+                    warn "Warning: #{e.class} #{e.message}"
+                    ""
+                  end
     end
 
     def source_with_syntax_highlighting
