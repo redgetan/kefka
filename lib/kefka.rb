@@ -1,37 +1,23 @@
 require 'coderay'
 require 'pry'
-require 'rgl'
+require 'rgl/adjacency'
 
 require 'logger'
 
 class Kefka
 
-  class Caller
-    attr_reader :file, :line, :method_id
-
-    def initialize(called_from)
-      called_from =~ /(\S+?):(\d+).*`(.+)'/
-      @file = $1
-      @line = $2
-      @method_id = $3
-    end
-
-    def to_hash
-      { :file => @file, :line => @line, :method => @method_id }
-    end
-  end
-
   class Method
 
     attr_reader :classname, :id, :file, :line, :caller
-    attr_accessor :syntax_highlight_source
+    attr_accessor :format
 
     def initialize(options={})
       @classname = options[:classname]
       @id        = options[:id]
       @file      = options[:file]
       @line      = options[:line]
-      @caller    = Caller.new(options[:caller])
+      @caller    = options[:caller]
+      @format    = options[:format] || :plain
     end
 
     def source_location
@@ -43,6 +29,14 @@ class Kefka
       @line + source.lines.count - 1
     end
 
+    def key
+      source_location.join(":")
+    end
+
+    def contains?(file, line)
+      @file == file && @line < line && end_line > line
+    end
+
     def source
       @source ||= begin
                     MethodSource.source_helper(source_location)
@@ -52,38 +46,68 @@ class Kefka
                   end
     end
 
-    def source_with_syntax_highlighting
-      text = source
-      CodeRay.scan(text, :ruby)
-             .div(:line_numbers => :table, :line_number_start => @line)
+    def formatted_source
+      if @format == :html
+        CodeRay.scan(source, :ruby)
+               .div(:line_numbers => :table, :line_number_start => @line)
+      else
+        source
+      end
+    end
+
+    def to_s
+      formatted_source
     end
 
     def to_json(*a)
-      result = {
+      {
         :classname => @classname,
         :id => @id,
         :file => @file,
         :line => @line,
         :end_line => end_line,
-        :caller => @caller.to_hash
-      }
-
-      if @syntax_highlight_source
-        result.merge!({ :source => source_with_syntax_highlighting })
-      else
-        result.merge!({ :source => source })
-      end
-
-      result.to_json(*a)
+        #:caller => @caller,
+        :source => formatted_source
+      }.to_json(*a)
     end
   end
+
+  class MethodTable
+    extend Forwardable
+    def_delegators :@store, :[], :[]=, :keys, :values, :to_json
+
+    def initialize
+      @store = Hash.new
+    end
+
+    def find_from_caller(target_caller)
+      target_caller =~ /(\S+?):(\d+).*`(.+)'/
+      file, line, method_id = $1, $2.to_i, $3
+      find_method_containing(file, line)
+    end
+
+    def find_method_containing(file,line)
+      @store.values.select { |method| method.contains?(file, line) }.first
+    end
+  end
+
+  #class MethodGraph
+    #extend Forwardable
+    #def_delegators :@graph, :vertices, :edges
+    #def name
+
+    #end
+    #def self.[](*args)
+      #@graph = RGL::DirectedAdjacencyGraph.new(*args)
+    #end
+  #end
 
   class Tracer
 
     attr_reader :method_table, :local_values, :logger
 
     def initialize(log_level = Logger::INFO)
-      @method_table = {}
+      @method_table = MethodTable.new
       @local_values = {}
       @event_disable = []
       @logger = Logger.new($stderr)
@@ -113,7 +137,7 @@ class Kefka
     def callgraph_handler(event, file, line, id, binding, classname)
       return if file == __FILE__
 
-      @logger.info "#{event} - #{file}:#{line} #{classname} #{id}"
+      @logger.debug "#{event} - #{file}:#{line} #{classname} #{id}"
 
       if disable_event_handlers?
         @event_disable.pop if event == "end"
@@ -124,14 +148,17 @@ class Kefka
       when "class"
         @event_disable << true
       when "call"
-         method = Method.new(:classname => classname,
-                             :id => id,
-                             :file => file,
-                             :line => line,
-                             :caller => caller[1])
+        from_method = @method_table.find_from_caller(caller[1])
 
-         key = method.source_location.join(":")
-         @method_table[key] = method
+        method = Method.new(
+          :classname => classname,
+          :id => id,
+          :file => file,
+          :line => line,
+          :caller => { :method => from_method, :line => line}
+        )
+
+        @method_table[method.key] = method
       else
         # do nothing
       end
@@ -149,7 +176,7 @@ class Kefka
       #       vars in that program
       return if file == __FILE__
 
-      @logger.info "#{event} - #{file}:#{line} #{classname} #{id}" if $DEBUG
+      @logger.debug "#{event} - #{file}:#{line} #{classname} #{id}" if $DEBUG
 
       if disable_event_handlers?
         @event_disable.pop if event == "end"
@@ -159,7 +186,6 @@ class Kefka
       case event
       when "class"
         @event_disable << true
-      when "call"
       when "line"
         key = [file, line].join(":")
         @local_values[key] = get_values_of_locals_from_binding(binding)
@@ -168,20 +194,16 @@ class Kefka
       end
     end
 
-    def trace(file, handler = :callgraph_handler)
-      start(handler)
-      file.rewind if file.eof?
-      code = file.read
-      eval(code, TOPLEVEL_BINDING, file.path, 1)
-      stop
-    end
+    def trace(file_path, handler = :callgraph_handler)
+      file = File.open(file_path)
 
-    def start(handler)
-      set_trace_func method(handler).to_proc
-    end
+      thread = Thread.new {
+        code = file.read
+        eval(code, TOPLEVEL_BINDING, file.path, 1)
+      }
 
-    def stop
-      set_trace_func nil
+      thread.set_trace_func method(handler).to_proc
+      thread.join
     end
 
   end

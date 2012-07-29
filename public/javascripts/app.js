@@ -2,44 +2,19 @@ var jqSelectorEscape = function(text) {
   return text.replace(/([!"#$%&'()*+,./:;<=>?@[\]^`{|}~])/g, "\\$&");
 };
 
-var getXCoordFromCaller = function(caller, methodTable) {
-  if (caller.method == "<main>")
-  {
-    return 10;
-  }
-
-  console.log(caller.method + " " +
-              caller.file + ":" + caller.line);
-
-  for (var key in methodTable)
-  {
-    if ( methodTable[key].file        == caller.file &&
-         methodTable[key].line         < caller.line &&
-         methodTable[key].end_line     > caller.line )
-    {
-      var $sourceBubble = $("div.bubble#" + jqSelectorEscape(key));
-      return $sourceBubble.position().left + 200;
-    }
-  }
-  // didnt find a match
-  console.log("warning: couldnt match " + caller.method + " " +
-              caller.file + ":" + caller.line + " to a method in methodTable");
-  return 10;
-};
-
 var createCodeBubbles = function(data) {
   console.log(data);
 
   var methodTable = data;
 
-  var xPos;
+  var xPos = 0;
   var yPos = 0;
-  var bubble, classname, id, code, file, line, caller, header;
+  var bubbleDiv, $bubble, $callerBubble, callerKey, classname, id, code, file, line, caller, header;
 
   for (var key in methodTable)
   {
-    bubble = "<div class='bubble'></div>";
-    $(bubble).appendTo("#methodGraph");
+    bubbleDiv = "<div class='bubble'></div>";
+    $(bubbleDiv).appendTo("#methodGraph");
 
     $bubble = $("#methodGraph .bubble").last();
     $bubble.append(methodTable[key].source);
@@ -51,7 +26,10 @@ var createCodeBubbles = function(data) {
     header = methodTable[key].file + ":" + methodTable[key].line;
     $bubble.prepend("<pre><span class='methodHeader'>" + header + "</span></pre>");
 
-    xPos = getXCoordFromCaller(methodTable[key].caller, methodTable);
+    // xPos = getXCoordFromCaller(methodTable[key].caller, methodTable);
+    //callerKey = methodTable[key].caller.method.key;
+    //$callerBubble = $("div.bubble#" + jqSelectorEscape(callerKey));
+    //xPos = $callerBubble.position().left + 200;
 
     // position bubble table
     $bubble.css("position", "absolute")
@@ -108,7 +86,7 @@ var displayLocalValues = function(data) {
     });
 
     var $line = $bubbles.find("td.locals span#line" + line).first();
-    $line.html(values);
+    $line.text(values.replace(/\n/g,""));
   }
 };
 

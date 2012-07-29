@@ -10,10 +10,8 @@ if ARGV.count < 1
   exit
 end
 
-path = ARGV[0]
-file = File.open(path)
-
+file_path = ARGV[0]
 tracer = Kefka::Tracer.new
-tracer.trace(file, :callgraph_handler)
+tracer.trace(file_path, :callgraph_handler)
 pp tracer.method_table
 

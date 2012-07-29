@@ -20,14 +20,7 @@ get '/callgraph' do
 
   results = @tracer.method_table
 
-  results.reject! { |k,v|
-    if k =~ /prelude/
-      @tracer.logger.warn("One of methods in table contains Thread method wherein" +
-                          "source_location is invalid - <internal:prelude>")
-      true
-    end
-  }
-  results.values.each { |method| method.syntax_highlight_source = true }
+  results.values.each { |method| method.format = :html }
   results.to_json
 end
 
