@@ -1,7 +1,9 @@
 require 'coderay'
 require 'rgl/adjacency'
-require 'forwardable'
+require 'rgl/dot'
+require 'method_source'
 
+require 'forwardable'
 require 'logger'
 
 class Kefka
@@ -16,7 +18,6 @@ class Kefka
       @id        = options[:id]
       @file      = options[:file]
       @line      = options[:line]
-      @caller    = options[:caller]
       @format    = options[:format] || :plain
     end
 
@@ -26,11 +27,12 @@ class Kefka
     end
 
     def end_line
+      return nil unless @line && source
       @line + source.lines.count - 1
     end
 
     def key
-      source_location.join(":")
+      source_location ? source_location.join(":") : nil
     end
 
     def contains?(file, line)
@@ -42,7 +44,7 @@ class Kefka
                     MethodSource.source_helper(source_location)
                   rescue MethodSource::SourceNotFoundError => e
                     warn "Warning: #{e.class} #{e.message}"
-                    ""
+                    nil
                   end
     end
 
@@ -56,7 +58,7 @@ class Kefka
     end
 
     def to_s
-      formatted_source
+      "#{classname} #{id}"
     end
 
     def to_json(*a)
@@ -66,48 +68,40 @@ class Kefka
         :file => @file,
         :line => @line,
         :end_line => end_line,
-        #:caller => @caller,
         :source => formatted_source
       }.to_json(*a)
     end
   end
 
-  class MethodTable
+  class MethodGraph
     extend Forwardable
-    def_delegators :@store, :[], :[]=, :keys, :values, :to_json
+    def_delegators :@graph, :vertices, :edges, :add_edge,
+                   :write_to_graphic_file
 
     def initialize
-      @store = Hash.new
+      @graph =  RGL::DirectedAdjacencyGraph.new
     end
 
-    def find_from_caller(target_caller)
-      target_caller =~ /(\S+?):(\d+).*`(.+)'/
-      file, line, method_id = $1, $2.to_i, $3
-      find_method_containing(file, line)
-    end
-
-    def find_method_containing(file,line)
-      @store.values.select { |method| method.contains?(file, line) }.first
+    def to_json
+      {
+        :vertices => vertices,
+        :edges => edges.map { |edge|
+          {
+            :source => edge.source.key,
+            :target => edge.target.key
+          }
+        }
+      }.to_json
     end
   end
 
-  #class MethodGraph
-    #extend Forwardable
-    #def_delegators :@graph, :vertices, :edges
-    #def name
-
-    #end
-    #def self.[](*args)
-      #@graph = RGL::DirectedAdjacencyGraph.new(*args)
-    #end
-  #end
-
   class Tracer
 
-    attr_reader :method_table, :local_values, :logger
+    attr_reader :method_table, :local_values, :logger, :callstack, :method_graph
 
     def initialize(log_level = Logger::INFO)
-      @method_table = MethodTable.new
+      @method_graph = MethodGraph.new
+      @callstack = []
       @local_values = {}
       @event_disable = []
       @logger = Logger.new($stderr)
@@ -148,17 +142,22 @@ class Kefka
       when "class"
         @event_disable << true
       when "call"
-        from_method = @method_table.find_from_caller(caller[1])
+        method_caller = @callstack.last
 
         method = Method.new(
           :classname => classname,
           :id => id,
           :file => file,
-          :line => line,
-          :caller => { :method => from_method, :line => line}
+          :line => line
         )
 
-        @method_table[method.key] = method
+        if method_caller
+          @method_graph.add_edge(method_caller,method)
+        end
+
+        @callstack << method
+      when "return"
+        @callstack.pop
       else
         # do nothing
       end

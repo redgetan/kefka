@@ -18,10 +18,9 @@ get '/callgraph' do
   @tracer = Kefka::Tracer.new
   @tracer.trace(file, :callgraph_handler)
 
-  results = @tracer.method_table
-
-  results.values.each { |method| method.format = :html }
-  results.to_json
+  graph = @tracer.method_graph
+  graph.vertices.each { |method| method.format = :html }
+  graph.to_json
 end
 
 get '/locals' do
