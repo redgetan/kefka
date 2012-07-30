@@ -1,5 +1,6 @@
 require 'coderay'
 require 'rgl/adjacency'
+require 'forwardable'
 
 require 'logger'
 
