@@ -3,15 +3,10 @@
 $LOAD_PATH.unshift("#{File.expand_path(File.dirname(__FILE__))}/../lib")
 
 require 'kefka'
-require 'pp'
 
-if ARGV.count < 1
-  puts "Usage: kefka [path_to_file]"
-  exit
-end
+RUBY = File.join(*RbConfig::CONFIG.values_at("bindir", "ruby_install_name")) + RbConfig::CONFIG["EXEEXT"]
 
-file_path = ARGV[0]
-tracer = Kefka::Tracer.new
-tracer.trace(file_path, :callgraph_handler)
-pp tracer.method_table
+APP = "#{File.expand_path(File.dirname(__FILE__))}/../app.rb"
+exec RUBY, APP
+
 

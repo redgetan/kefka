@@ -1,5 +1,4 @@
 require 'coderay'
-require 'pry'
 require 'rgl/adjacency'
 
 require 'logger'

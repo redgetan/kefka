@@ -1,6 +1,6 @@
-== Kefka
+== Kefka (Experimental)
 
-A tool for understanding unfamiliar codebases and 3rd party libraries. It shows you callgraphs for different execution paths of a program.
+A tool for understanding unfamiliar codebases and 3rd party libraries. Basic Idea is to visualize the method callgraph of a program while showing local variable values for each line of execution.
 
 == Installation
 
@@ -8,9 +8,8 @@ A tool for understanding unfamiliar codebases and 3rd party libraries. It shows 
 
 == Usage
 
-From the command line ,
-
-`kefka filename.rb`
+1. From the command line , `kefka`
+2. Go to browser and point to http://localhost:4567/
 
 Examples are provided under the examples directory of kefka gem
 
