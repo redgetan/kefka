@@ -22,12 +22,10 @@ class Kefka
     end
 
     def source_location
-      return nil unless @file && @line
       [@file,@line]
     end
 
     def end_line
-      return nil unless @line && source
       @line + source.lines.count - 1
     end
 
@@ -59,6 +57,14 @@ class Kefka
 
     def to_s
       "#{classname} #{id}"
+    end
+
+    def eql?(other)
+      self.key == other.key
+    end
+
+    def hash
+      [@file,@line].hash
     end
 
     def to_json(*a)
@@ -97,7 +103,8 @@ class Kefka
 
   class Tracer
 
-    attr_reader :method_table, :local_values, :logger, :callstack, :method_graph
+    attr_reader :local_values, :logger, :callstack, :method_graph,
+                :code
 
     def initialize(log_level = Logger::INFO)
       @method_graph = MethodGraph.new
@@ -108,17 +115,21 @@ class Kefka
       @logger.level = log_level
     end
 
+    def get_locals(target)
+      target.eval("local_variables")
+    end
+
+    def deep_copy(val)
+      Marshal.load(Marshal.dump(val))
+    rescue TypeError
+      "_unknown_"
+    end
+
     def get_values_of_locals_from_binding(target)
-      locals = target.eval("local_variables")
+      locals = get_locals(target)
       locals.inject({}) do |result,l|
         val = target.eval(l.to_s)
-        val = begin
-                # deep copy
-                Marshal.load(Marshal.dump(val)) if val
-              rescue TypeError
-                "_unknown_"
-              end
-
+        val = deep_copy(val)
         result.merge!({ l => val })
         result
       end
@@ -193,12 +204,17 @@ class Kefka
       end
     end
 
+    def print_callgraph
+      public_dir = "#{File.expand_path(File.dirname(__FILE__))}/../public"
+      @method_graph.write_to_graphic_file("png", "#{public_dir}/graph")
+    end
+
     def trace(file_path, handler = :callgraph_handler)
       file = File.open(file_path)
 
       thread = Thread.new {
-        code = file.read
-        eval(code, TOPLEVEL_BINDING, file.path, 1)
+        @code = file.read
+        eval(@code, TOPLEVEL_BINDING, file.path, 1)
       }
 
       thread.set_trace_func method(handler).to_proc

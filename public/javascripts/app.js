@@ -5,22 +5,31 @@ var jqSelectorEscape = function(text) {
 var createCodeBubbles = function(data) {
   console.log(data);
 
-  var methodGraph = data;
+  var input = data.code;
+
+  $("div#input").last().append(input);
+
+  if (data.graphviz_installed == true) {
+    $("div#callGraph").last().append("<img src='graph.png'/>");
+  } else {
+    $("div#callGraph").last().append("Graphviz visualization not Available. Install Graphviz to enable it.");
+  }
+
+  var codeGraph = data.graph;
 
   var xPos = 0;
-  var yPos = 0;
   var bubbleDiv, $bubble, $code,
       key, header,
       lineCount, column;
 
-  var methods = methodGraph.vertices;
+  var methods = codeGraph.vertices;
 
   for (var i = 0; i < methods.length; i++ )
   {
     bubbleDiv = "<div class='bubble'></div>";
-    $(bubbleDiv).appendTo("#methodGraph");
+    $(bubbleDiv).appendTo("#codeGraph");
 
-    $bubble = $("#methodGraph .bubble").last();
+    $bubble = $("#codeGraph .bubble").last();
     $bubble.append(methods[i].source);
 
     // set id for bubble table
@@ -36,11 +45,8 @@ var createCodeBubbles = function(data) {
     //xPos = $callerBubble.position().left + 200;
 
     // position bubble table
-    $bubble.css("position", "absolute")
-           .css("left", xPos)
-           .css("top",  yPos);
-
-    yPos += $bubble.height();
+    $bubble.css("position", "relative")
+           .css("left", xPos);
 
     // add column for displaying local values
     lineCount = $bubble.find("td.line-numbers a").length;

@@ -54,3 +54,5 @@ pkg
 #*.rbc
 
 try.rb
+public/graph.png
+public/graph.dot
