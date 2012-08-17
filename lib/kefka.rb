@@ -3,6 +3,7 @@ require 'rgl/adjacency'
 require 'rgl/dot'
 require 'method_source'
 
+require 'ripper'
 require 'forwardable'
 require 'logger'
 
@@ -10,23 +11,24 @@ class Kefka
 
   class Method
 
-    attr_reader :classname, :id, :file, :line, :caller
-    attr_accessor :format
+    attr_reader :classname, :id, :file, :line
+    attr_accessor :source, :format
 
     def initialize(options={})
-      @classname = options[:classname]
-      @id        = options[:id]
-      @file      = options[:file]
-      @line      = options[:line]
-      @format    = options[:format] || :plain
+      raise ArgumentError, "missing file + line" unless options[:file] && options[:line]
+      @classname  = options[:classname]
+      @id         = options[:id]
+      @file       = options[:file]
+      @start_line = options[:line]
+      @format     = options[:format] || :plain
     end
 
     def source_location
-      [@file,@line]
+      [@file,@start_line]
     end
 
     def end_line
-      @line + source.lines.count - 1
+      @start_line + source.lines.count - 1
     end
 
     def key
@@ -34,7 +36,7 @@ class Kefka
     end
 
     def contains?(file, line)
-      @file == file && @line < line && end_line > line
+      @file == file && @start_line <= line && end_line > line
     end
 
     def source
@@ -49,10 +51,16 @@ class Kefka
     def formatted_source
       if @format == :html
         CodeRay.scan(source, :ruby)
-               .div(:line_numbers => :table, :line_number_start => @line)
+               .div(:line_numbers => :table, :line_number_start => @start_line)
       else
         source
       end
+    end
+
+    def source_at_line(line)
+      # what if source is not known, ie. eval
+      index = line - @start_line
+      source.lines.take(index + 1)[index]
     end
 
     def to_s
@@ -63,8 +71,10 @@ class Kefka
       self.key == other.key
     end
 
+    alias :== :eql?
+
     def hash
-      [@file,@line].hash
+      [@file,@start_line].hash
     end
 
     def to_json(*a)
@@ -72,7 +82,7 @@ class Kefka
         :classname => @classname,
         :id => @id,
         :file => @file,
-        :line => @line,
+        :line => @start_line,
         :end_line => end_line,
         :source => formatted_source
       }.to_json(*a)
@@ -115,35 +125,29 @@ class Kefka
       @logger.level = log_level
     end
 
-    def get_locals(target)
-      target.eval("local_variables")
-    end
+    def trace(file_path)
+      file = File.open(file_path)
 
-    def deep_copy(val)
-      Marshal.load(Marshal.dump(val))
-    rescue TypeError
-      "_unknown_"
-    end
+      thread = Thread.new {
+        @code = file.read
+        #@callstack << create_top_level_method(file_path)
+        eval(@code, TOPLEVEL_BINDING, file.path, 1)
+      }
 
-    def get_values_of_locals_from_binding(target)
-      locals = get_locals(target)
-      locals.inject({}) do |result,l|
-        val = target.eval(l.to_s)
-        val = deep_copy(val)
-        result.merge!({ l => val })
-        result
-      end
+      thread.set_trace_func method(:trace_handler).to_proc
+      thread.join
     end
 
     def disable_event_handlers?
       !@event_disable.empty?
     end
 
-    def callgraph_handler(event, file, line, id, binding, classname)
+    def trace_handler(event, file, line, id, binding, classname)
       return if file == __FILE__
 
       @logger.debug "#{event} - #{file}:#{line} #{classname} #{id}"
 
+      # skip event handling when iseq is happening inside class loading
       if disable_event_handlers?
         @event_disable.pop if event == "end"
         return
@@ -167,6 +171,28 @@ class Kefka
         end
 
         @callstack << method
+      when "line"
+        # skip variables that should not be tracked
+        # 1. anything in current lib (i.e __FILE__)
+        # 2. all local variables that are in TOP LEVEL BINDING before tracing
+        #     - but these variables may be overwritten by the traced program,
+        #       excluding them would mean not displaying certain relevant
+        #       vars in that program
+        #current_method = @callstack.last
+
+        # given current file & line, determine what method I am in
+
+        method = @method_graph.vertices
+                              .select { |method| method.contains?(file,line) }
+                              .first
+
+        # skip if not in any previously called method
+        if method
+          line_source = method.source_at_line(line)
+
+          iseq_key = [file, line].join(":")
+          @local_values[iseq_key] = get_values_of_locals_from_binding(binding, line_source)
+        end
       when "return"
         @callstack.pop
       else
@@ -177,48 +203,48 @@ class Kefka
       Process.kill("KILL", $$)
     end
 
-    def local_values_handler(event, file, line, id, binding, classname)
-      # skip variables that should not be tracked
-      # 1. anything in current lib (i.e __FILE__)
-      # 2. all local variables that are in TOP LEVEL BINDING before tracing
-      #     - but these variables may be overwritten by the traced program,
-      #       excluding them would mean not displaying certain relevant
-      #       vars in that program
-      return if file == __FILE__
-
-      @logger.debug "#{event} - #{file}:#{line} #{classname} #{id}" if $DEBUG
-
-      if disable_event_handlers?
-        @event_disable.pop if event == "end"
-        return
-      end
-
-      case event
-      when "class"
-        @event_disable << true
-      when "line"
-        key = [file, line].join(":")
-        @local_values[key] = get_values_of_locals_from_binding(binding)
-      else
-        # do nothing
+    def get_values_of_locals_from_binding(target, line_source)
+      locals = get_locals(target,line_source)
+      locals.inject({}) do |result,l|
+        val = target.eval(l.to_s)
+        val = deep_copy(val)
+        result.merge!({ l => val })
+        result
       end
     end
 
-    def print_callgraph
-      public_dir = "#{File.expand_path(File.dirname(__FILE__))}/../public"
-      @method_graph.write_to_graphic_file("png", "#{public_dir}/graph")
-    end
+    def get_locals(target, line_source)
+      scope_locals = target.eval("local_variables")
+      scope_locals.map! { |local| local.to_s }
 
-    def trace(file_path, handler = :callgraph_handler)
-      file = File.open(file_path)
+      tokens = Ripper.lex(line_source)
 
-      thread = Thread.new {
-        @code = file.read
-        eval(@code, TOPLEVEL_BINDING, file.path, 1)
+      tokens.select! { |token|
+        type = token[1]
+        type == :on_ident || type == :on_ivar || type == :on_cvar
       }
 
-      thread.set_trace_func method(handler).to_proc
-      thread.join
+      possible_line_variables = tokens.map { |token| token[2] }
+      line_variables = scope_locals & possible_line_variables
+      line_variables
+    end
+
+    def deep_copy(val)
+      Marshal.load(Marshal.dump(val))
+    rescue TypeError
+      "_unknown_"
+    end
+
+
+    def create_top_level_method(file)
+      method = Method.new(
+        :classname => "Object",
+        :id => "<main>",
+        :file => file,
+        :line => 1
+      )
+      method.source = File.readlines(file).join
+      return method
     end
 
   end

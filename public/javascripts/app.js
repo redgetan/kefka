@@ -2,27 +2,34 @@ var jqSelectorEscape = function(text) {
   return text.replace(/([!"#$%&'()*+,./:;<=>?@[\]^`{|}~])/g, "\\$&");
 };
 
-var createCodeBubbles = function(data) {
-  console.log(data);
+var outputTrace = function(data) {
+  displayInput(data.input);
+  displayGraphiz(data.is_graphviz_installed);
+  createCodeBubbles(data.graph);
+  displayLocals(data.locals);
+}
 
-  var input = data.code;
-
+var displayInput = function(input) {
   $("div#input").last().append(input);
+};
 
-  if (data.graphviz_installed == true) {
+var displayGraphiz = function(is_graphviz_installed) {
+  if (is_graphviz_installed) {
     $("div#callGraph").last().append("<img src='graph.png'/>");
   } else {
     $("div#callGraph").last().append("Graphviz visualization not Available. Install Graphviz to enable it.");
   }
+};
 
-  var codeGraph = data.graph;
+var createCodeBubbles = function(graph) {
+  console.log(graph);
 
   var xPos = 0;
   var bubbleDiv, $bubble, $code,
       key, header,
       lineCount, column;
 
-  var methods = codeGraph.vertices;
+  var methods = graph.vertices;
 
   for (var i = 0; i < methods.length; i++ )
   {
@@ -68,23 +75,21 @@ var createCodeBubbles = function(data) {
   }
 };
 
-var displayLocalValues = function(data) {
-  console.log(data);
-
-  var localValues = data;
+var displayLocals = function(locals) {
+  console.log(locals);
 
   var values, keys, file, line, $bubbles, $line;
 
-  for (var key in localValues)
+  for (var key in locals)
   {
     values = "";
 
-    for (var local in localValues[key])
+    for (var local in locals[key])
     {
       values += "\t";
       values += local;
       values += ": ";
-      values += localValues[key][local];
+      values += locals[key][local];
     }
 
     keys = key.split(":");
@@ -102,20 +107,11 @@ var displayLocalValues = function(data) {
 
 $(document).ready(function(){
 
-  var getLocalValues = function() {
-    $.ajax({
-      url: "/locals",
-      dataType: "json",
-      success: displayLocalValues
-    });
-  };
-
   $.ajax({
     url: "/callgraph",
     dataType: "json",
-    success: [createCodeBubbles, getLocalValues]
+    success: outputTrace
   });
-
 
 });
 
