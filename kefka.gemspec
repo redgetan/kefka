@@ -5,11 +5,11 @@
 
 Gem::Specification.new do |s|
   s.name = "kefka"
-  s.version = "0.0.3"
+  s.version = "0.0.4"
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["Reginald Tan"]
-  s.date = "2012-08-12"
+  s.date = "2012-08-18"
   s.description = " It traces the execution path of a program and displays the source code of each method call in the callgraph "
   s.email = "redge.tan@gmail.com"
   s.executables = ["kefka"]
@@ -34,8 +34,9 @@ Gem::Specification.new do |s|
     "public/javascripts/app.js",
     "public/javascripts/jquery-1.7.2.js",
     "public/stylesheets/application.css",
-    "test/helper.rb",
-    "test/test_kefka.rb",
+    "spec/fixture/sample_a.rb",
+    "spec/kekfa_spec.rb",
+    "spec/spec_helper.rb",
     "views/index.erb"
   ]
   s.homepage = "http://github.com/redgetan/kefka"
