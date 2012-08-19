@@ -13,13 +13,15 @@ end
 #
 # key features
 #   reduce clutter
-#     only show variable values when line contains that var
+#   x only show variable values when line contains that var
 #       variables include instance/class/local variable
 #       on_ident (do not include method, i.e. if preceded by period)
 #       on_ivar
 #       on_cvar
+#
 #     all variable values within a method should replace their variable counterparts
 #       when mouse hovers over a variable in that method
+#
 #     collapsible
 #       only show bubbles at toplevel (main entry point of program), others are hidden
 #       each bubble will have a # children counter which specifies how many bubbles it has down the chain
@@ -282,13 +284,3 @@ describe "Kekfa::Tracer" do
   end
   #
 end
-
-#class Inspector
-  #def initialize
-
-  #end
-
-  #def
-
-  #end
-#end

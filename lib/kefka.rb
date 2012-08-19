@@ -111,6 +111,31 @@ class Kefka
     end
   end
 
+  module LocalsHelper
+    # @target - binding
+    def self.get_locals(target, line_source)
+      scope_locals = target.eval("local_variables")
+      scope_locals.map! { |local| local.to_s }
+
+      tokens = Ripper.lex(line_source)
+
+      lvar, ivar, cvar = [], [], []
+
+      tokens.each { |token|
+        type = token[1]
+
+        case type
+        when :on_ident; lvar << token[2] if scope_locals.include? token[2]
+        when :on_ivar;  ivar << token[2]
+        when :on_cvar;  cvar << token[2]
+        else # do nothing
+        end
+      }
+
+      [lvar,ivar,cvar].flatten
+    end
+  end
+
   class Tracer
 
     attr_reader :local_values, :logger, :callstack, :method_graph,
@@ -204,29 +229,13 @@ class Kefka
     end
 
     def get_values_of_locals_from_binding(target, line_source)
-      locals = get_locals(target,line_source)
+      locals = LocalsHelper.get_locals(target,line_source)
       locals.inject({}) do |result,l|
         val = target.eval(l.to_s)
         val = deep_copy(val)
         result.merge!({ l => val })
         result
       end
-    end
-
-    def get_locals(target, line_source)
-      scope_locals = target.eval("local_variables")
-      scope_locals.map! { |local| local.to_s }
-
-      tokens = Ripper.lex(line_source)
-
-      tokens.select! { |token|
-        type = token[1]
-        type == :on_ident || type == :on_ivar || type == :on_cvar
-      }
-
-      possible_line_variables = tokens.map { |token| token[2] }
-      line_variables = scope_locals & possible_line_variables
-      line_variables
     end
 
     def deep_copy(val)
