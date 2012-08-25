@@ -244,7 +244,7 @@ class Kefka
       locals.inject({}) do |result,l|
         val = target.eval(l.to_s)
         val = deep_copy(val)
-        result.merge!({ l => val })
+        result.merge!({ l => val.to_s })
         result
       end
     end
