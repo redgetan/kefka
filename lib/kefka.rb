@@ -12,7 +12,7 @@ class Kefka
   class Method
 
     attr_reader :classname, :id, :file, :line
-    attr_accessor :source, :format
+    attr_accessor :source, :format, :depth
 
     def initialize(options={})
       raise ArgumentError, "missing file + line" unless options[:file] && options[:line]
@@ -84,6 +84,7 @@ class Kefka
         :file => @file,
         :line => @start_line,
         :end_line => end_line,
+        :depth => depth,
         :source => formatted_source
       }.to_json(*a)
     end
@@ -91,11 +92,21 @@ class Kefka
 
   class MethodGraph
     extend Forwardable
-    def_delegators :@graph, :vertices, :edges, :add_edge,
+    def_delegators :@graph, :vertices, :edges,
                    :write_to_graphic_file
 
     def initialize
       @graph =  RGL::DirectedAdjacencyGraph.new
+    end
+
+    def assign_depth(u,v)
+      u.depth = 0 unless u.depth
+      v.depth = u.depth + 1
+    end
+
+    def add_edge(u,v)
+      assign_depth(u,v)
+      @graph.add_edge(u,v)
     end
 
     def to_json

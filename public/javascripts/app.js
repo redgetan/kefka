@@ -50,6 +50,7 @@ var createCodeBubbles = function(graph) {
     //callerKey = methodTable[key].caller.method.key;
     //$callerBubble = $("div.bubble#" + jqSelectorEscape(callerKey));
     //xPos = $callerBubble.position().left + 200;
+    xPos = methods[i].depth * 200;
 
     // position bubble table
     $bubble.css("position", "relative")
