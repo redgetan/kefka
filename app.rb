@@ -23,9 +23,9 @@ get '/callgraph' do
   graph = @tracer.method_graph
 
   # output call graph using dot if graphviz is installed
-  if is_graphviz_installed = system("which dot")
-    graph.write_to_graphic_file("png", "#{File.expand_path(File.dirname(__FILE__))}/public/graph")
-  end
+  #if is_graphviz_installed = system("which dot")
+  #  graph.write_to_graphic_file("png", "#{File.expand_path(File.dirname(__FILE__))}/public/graph")
+  #end
 
   # html code graph
   graph.vertices.each { |method| method.format = :html }
@@ -35,7 +35,7 @@ get '/callgraph' do
 
   {
     :input => input,
-    :is_graphviz_installed => is_graphviz_installed,
+    #:is_graphviz_installed => is_graphviz_installed,
     :graph => graph,
     :locals => locals
   }.to_json

@@ -4,7 +4,7 @@ var jqSelectorEscape = function(text) {
 
 var outputTrace = function(data) {
   displayInput(data.input);
-  displayGraphiz(data.is_graphviz_installed);
+  //displayGraphiz(data.is_graphviz_installed);
   createCodeBubbles(data.graph);
   displayLocals(data.locals);
 }
@@ -47,14 +47,33 @@ var createCodeBubbles = function(graph) {
     header = methods[i].file + ":" + methods[i].line;
     $bubble.prepend("<pre><span class='methodHeader'>" + header + "</span></pre>");
 
-    //callerKey = methodTable[key].caller.method.key;
-    //$callerBubble = $("div.bubble#" + jqSelectorEscape(callerKey));
-    //xPos = $callerBubble.position().left + 200;
+    // set column position
     xPos = methods[i].depth * 200;
 
     // position bubble table
     $bubble.css("position", "relative")
            .css("left", xPos);
+
+    // hide bubbles in deeper levels
+
+    if (methods[i].depth != 0) {
+      $bubble.hide();
+    }
+
+    // add 'expand' link to expand bubble
+    $bubble.prepend("<button type='button' class='expand'>expand</button>");
+    $bubble.find("button.expand").first().click(function() {
+      return function(that){
+        _.chain(graph.edges)
+          .filter( function(edge){ return edge.source == $(that).parent().attr("id"); })
+          .map(    function(edge){ return edge.target })
+          .each(   function(target){
+            $("#codeGraph .bubble#" + jqSelectorEscape(target))
+              .first()
+              .toggle();
+        });
+      }(this);
+    });
 
     // add column for displaying local values
     lineCount = $bubble.find("td.line-numbers a").length;
