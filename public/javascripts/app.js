@@ -2,13 +2,6 @@ var jqSelectorEscape = function(text) {
   return text.replace(/([!"#$%&'()*+,./:;<=>?@[\]^`{|}~])/g, "\\$&");
 };
 
-var outputTrace = function(data) {
-  //displayInput(data.input);
-  //displayGraphiz(data.is_graphviz_installed);
-  createCodeBubbles(data.vertices,data.edges);
-  displayLocals(data.locals);
-}
-
 var displayInput = function(input) {
   $("div#input").last().append(input);
 };
@@ -21,16 +14,113 @@ var displayGraphiz = function(is_graphviz_installed) {
   }
 };
 
+var setupBubble = function(bubble, method) {
+  var $bubble, xPos, key, header;
+
+  $bubble = bubble;
+
+  $bubble.append(method.source);
+
+  // set id for bubble table
+  key = method.id + ":" + method.file + ":" + method.line;
+  $bubble.attr("id",key);
+
+  // set header of bubble div
+  header = method.file + ":" + method.line;
+  $bubble.prepend("<pre><span class='methodHeader'>" + header + "</span></pre>");
+
+  // set column position
+  xPos = method.depth * 200;
+
+  // position bubble table
+  $bubble.css("position", "relative")
+         .css("left", xPos);
+
+  // hide bubbles in deeper levels
+
+  if (method.depth != 0) {
+    $bubble.hide();
+  }
+};
+
+var addExpandColumn = function(bubble,method) {
+  var column, $code, $bubble;
+
+  $bubble = bubble;
+
+  column = "<td class='expand'>";
+  column += "<pre>";
+
+  for (var j = method.line; j <= method.end_line ; j++)
+  {
+    column += "<span id='line" + j + "'></span>\n";
+  }
+
+  column += "</pre>";
+  column += "</td>";
+
+  $code = $bubble.find("td.code");
+  $code.after(column);
+};
+
+var addLocalsColumn = function(bubble,method) {
+  var column, $expand, $bubble;
+
+  $bubble = bubble;
+
+  column = "<td class='locals'>";
+  column += "<pre>";
+
+  for (var j = method.line; j <= method.end_line; j++)
+  {
+    column += "<span id='line" + j + "'></span>\n";
+  }
+
+  column += "</pre>";
+  column += "</td>";
+
+  $expand = $bubble.find("td.expand");
+  $expand.after(column);
+};
+
+var setupCall = function(call, edges) {
+  var keyTokens, methodName, file, line,
+      $bubbles, $line;
+
+  keyTokens = call.split(":");
+  methodName = keyTokens[0];
+  file       = keyTokens[1];
+  line       = keyTokens[2];
+
+  $bubbles = $("div.bubble").filter(function(){
+    return this.id.match(methodName) && this.id.match(file);
+  });
+
+  $line = $bubbles.find("td.expand span#line" + line).first();
+  $line.data("key",call);
+
+  $line.html("<div class='expand'>+</div>");
+  $line.find("div.expand").first().click(function() {
+    return function(that){
+      _.chain(edges)
+        .filter( function(edge){ return edge.source == $(that).parent().data("key"); })
+        .map(    function(edge){ console.log(edge);return edge.target })
+        .each(   function(target){
+          $("#codeGraph .bubble#" + jqSelectorEscape(target))
+            .first()
+            .toggle();
+      });
+    }(this);
+  });
+
+};
+
 var createCodeBubbles = function(vertices,edges) {
   console.log(vertices);
   console.log(edges);
 
   var xPos = 0;
-  var bubbleDiv,
-      $bubble, $code, $expand,
-      key, keyTokens, methodName, file, line,
-      header,
-      lineCount, column;
+  var bubbleDiv, $bubble;
 
   var methods = vertices;
 
@@ -39,62 +129,10 @@ var createCodeBubbles = function(vertices,edges) {
     $(bubbleDiv).appendTo("#codeGraph");
 
     $bubble = $("#codeGraph .bubble").last();
-    $bubble.append(method.source);
 
-    // set id for bubble table
-    key = method.id + ":" + method.file + ":" + method.line;
-    $bubble.attr("id",key);
-
-    // set header of bubble div
-    header = method.file + ":" + method.line;
-    $bubble.prepend("<pre><span class='methodHeader'>" + header + "</span></pre>");
-
-    // set column position
-    xPos = method.depth * 200;
-
-    // position bubble table
-    $bubble.css("position", "relative")
-           .css("left", xPos);
-
-    // hide bubbles in deeper levels
-
-    if (method.depth != 0) {
-      $bubble.hide();
-    }
-
-    lineCount = $bubble.find("td.line-numbers a").length;
-
-    // add column for displaying expand buttons
-    column = "<td class='expand'>";
-    column += "<pre>";
-
-    for (var j = method.line; j < method.line + lineCount; j++)
-    {
-      column += "<span id='line" + j + "'></span>\n";
-    }
-
-    column += "</pre>";
-    column += "</td>";
-
-    $code = $bubble.find("td.code");
-    $code.after(column);
-
-    // add column for displaying local values
-
-    column = "<td class='locals'>";
-    column += "<pre>";
-
-    for (var j = method.line; j < method.line + lineCount; j++)
-    {
-      column += "<span id='line" + j + "'></span>\n";
-    }
-
-    column += "</pre>";
-    column += "</td>";
-
-    $expand = $bubble.find("td.expand");
-    $expand.after(column);
-
+    setupBubble($bubble, method);
+    addExpandColumn($bubble,method);
+    addLocalsColumn($bubble,method);
   });
 
   var calls = _.map(edges, function(edge) { return edge.source });
@@ -104,34 +142,8 @@ var createCodeBubbles = function(vertices,edges) {
   // on button, add click handler that will
 
   _.each(calls, function(call){
-    keyTokens = call.split(":");
-    methodName = keyTokens[0];
-    file       = keyTokens[1];
-    line       = keyTokens[2];
-
-    $bubbles = $("div.bubble").filter(function(){
-      return this.id.match(methodName) && this.id.match(file);
-    });
-
-    $line = $bubbles.find("td.expand span#line" + line).first();
-    $line.data("key",call);
-
-    $line.html("<div class='expand'>+</div>");
-    $line.find("div.expand").first().click(function() {
-      return function(that){
-        _.chain(edges)
-          .filter( function(edge){ return edge.source == $(that).parent().data("key"); })
-          .map(    function(edge){ console.log(edge);return edge.target })
-          .each(   function(target){
-            $("#codeGraph .bubble#" + jqSelectorEscape(target))
-              .first()
-              .toggle();
-        });
-      }(this);
-    });
-
+    setupCall(call, edges);
   });
-
 
 };
 
@@ -165,6 +177,13 @@ var displayLocals = function(locals) {
     $line.text(values.replace(/\n/g,""));
   }
 };
+
+var outputTrace = function(data) {
+  //displayInput(data.input);
+  //displayGraphiz(data.is_graphviz_installed);
+  createCodeBubbles(data.vertices,data.edges);
+  displayLocals(data.locals);
+}
 
 $(document).ready(function(){
 

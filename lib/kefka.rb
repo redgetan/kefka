@@ -115,6 +115,7 @@ class Kefka
         :id => @id.to_s,
         :file => @file,
         :line => @start_line,
+        :end_line => end_line,
         :depth => depth,
         :source => formatted_source
       }.to_json(*a)
