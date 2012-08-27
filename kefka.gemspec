@@ -5,7 +5,7 @@
 
 Gem::Specification.new do |s|
   s.name = "kefka"
-  s.version = "0.0.5"
+  s.version = "0.0.6"
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["Reginald Tan"]
@@ -15,14 +15,14 @@ Gem::Specification.new do |s|
   s.executables = ["kefka"]
   s.extra_rdoc_files = [
     "LICENSE.txt",
-    "README",
+    "README.md",
     "TODO"
   ]
   s.files = [
     ".document",
     "Gemfile",
     "LICENSE.txt",
-    "README",
+    "README.md",
     "Rakefile",
     "VERSION",
     "app.rb",
