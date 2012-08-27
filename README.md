@@ -1,38 +1,36 @@
-== Kefka (Experimental)
+Kefka (Experimental)
+====
 
 A tool for understanding unfamiliar codebases and 3rd party libraries. Basic Idea is to visualize the method callgraph of a program while showing local variable values for each line of execution.
 
-== Installation
+![http://i.imgur.com/591Wz.png](http://i.imgur.com/591Wz.png)
 
-`gem install kefka`
+Installation
+----
 
-== Usage
+    $ gem install kefka
 
-1. From the command line , `kefka`
-2. Go to browser and point to http://localhost:4567/
+Usage
+----
 
-Examples are provided under the examples directory of kefka gem
+    $ kefka
+    Go to browser and point to http://localhost:4567/
 
-`kefka /path_to_examples_dir_of_kefka/sample1.rb`
+TODO
+----
 
-== Guinea Pigs
+show multiple locals values in loops/recursive calls/methods called from different sources
+better UI
+visualize links ( line call to a method )
 
-1. Rack ( lots of procs/lambdas usage, understand middleware)
-2. Rails/Thin/WEbrick ( understand full request response cycle )
-3. Pry
-4. EventMachine ( reactor scheduler, threadpool, defer )
-5. Celluloid
-
-== Related Papers
+Related Papers
+----
 
 http://relo.csail.mit.edu/documentation/relo-vlhcc06.pdf
 http://dmrussell.net/CHI2010/docs/p2503.pdf
 
-== Useful Links
-
-https://github.com/ruby/ruby/blob/trunk/test/ruby/test_settracefunc.rb
-
-== Contributing to kefka
+Contributing to kefka
+----
 
 * Check out the latest master to make sure the feature hasn't been implemented or the bug hasn't been fixed yet.
 * Check out the issue tracker to make sure someone already hasn't requested it and/or contributed it.
