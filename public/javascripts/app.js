@@ -100,11 +100,17 @@ var setupCall = function(call, edges) {
   $line.data("key",call);
 
   $line.html("<div class='expand'>+</div>");
+
+  var showExpand   = function() { $(this).text("+"); };
+  var showCollapse = function() { $(this).text("-"); };
+
+  $line.find("div.expand").first().toggle(showCollapse,showExpand);
+
   $line.find("div.expand").first().click(function() {
     return function(that){
       _.chain(edges)
         .filter( function(edge){ return edge.source == $(that).parent().data("key"); })
-        .map(    function(edge){ console.log(edge);return edge.target })
+        .map(    function(edge){ return edge.target })
         .each(   function(target){
           $("#codeGraph .bubble#" + jqSelectorEscape(target))
             .first()
