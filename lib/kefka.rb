@@ -9,6 +9,38 @@ require 'logger'
 
 class Kefka
 
+  class Call
+    attr_accessor :method, :line
+
+    def initialize(options={})
+      @method = options[:method]
+      @line = options[:line]
+    end
+
+    def file
+      @method.file
+    end
+
+    def to_s
+      "#{@method.file}:#{@line} in #{@method}"
+    end
+
+    def key
+      [@method.id,@method.file,@line].join(":")
+    end
+
+    def eql?(other)
+      self.key == other.key
+    end
+
+    alias :== :eql?
+
+    def hash
+      [@method.file,@line].hash
+    end
+
+  end
+
   class Method
 
     attr_reader :classname, :id, :file, :line
@@ -32,7 +64,7 @@ class Kefka
     end
 
     def key
-      source_location ? source_location.join(":") : nil
+      source_location ? [id,source_location].flatten.join(":") : nil
     end
 
     def contains?(file, line)
@@ -80,20 +112,19 @@ class Kefka
     def to_json(*a)
       {
         :classname => @classname,
-        :id => @id,
+        :id => @id.to_s,
         :file => @file,
         :line => @start_line,
-        :end_line => end_line,
         :depth => depth,
         :source => formatted_source
       }.to_json(*a)
     end
   end
 
+  # shows which method called which method
   class MethodGraph
     extend Forwardable
-    def_delegators :@graph, :vertices, :edges,
-                   :write_to_graphic_file
+    def_delegators :@graph, :vertices, :edges, :write_to_graphic_file
 
     def initialize
       @graph =  RGL::DirectedAdjacencyGraph.new
@@ -105,20 +136,33 @@ class Kefka
     end
 
     def add_edge(u,v)
+      raise ArgumentError unless Method === u && Method === v
       assign_depth(u,v)
       @graph.add_edge(u,v)
     end
+  end
 
-    def to_json
-      {
-        :vertices => vertices,
-        :edges => edges.map { |edge|
-          {
-            :source => edge.source.key,
-            :target => edge.target.key
-          }
+  # shows which line in a method called which method
+  class LineGraph
+    extend Forwardable
+    def_delegators :@graph, :vertices, :write_to_graphic_file
+
+    def initialize
+      @graph =  RGL::DirectedAdjacencyGraph.new
+    end
+
+    def add_edge(u,v)
+      raise ArgumentError unless Call === u && Method === v
+      @graph.add_edge(u,v)
+    end
+
+    def edges
+      @graph.edges.map { |edge|
+        {
+          :source => edge.source.key,
+          :target => edge.target.key
         }
-      }.to_json
+      }
     end
   end
 
@@ -149,11 +193,13 @@ class Kefka
 
   class Tracer
 
-    attr_reader :local_values, :logger, :callstack, :method_graph,
+    attr_reader :local_values, :logger, :callstack,
+                :method_graph, :line_graph,
                 :code
 
     def initialize(log_level = Logger::INFO)
       @method_graph = MethodGraph.new
+      @line_graph = LineGraph.new
       @callstack = []
       @local_values = {}
       @event_disable = []
@@ -166,7 +212,8 @@ class Kefka
 
       thread = Thread.new {
         @code = file.read
-        #@callstack << create_top_level_method(file_path)
+        toplevel_method = create_toplevel_method(file_path)
+        @callstack << Call.new(:method => toplevel_method, :line => 1)
         eval(@code, TOPLEVEL_BINDING, file.path, 1)
       }
 
@@ -193,7 +240,8 @@ class Kefka
       when "class"
         @event_disable << true
       when "call"
-        method_caller = @callstack.last
+        called_from = @callstack.last
+        caller_method = called_from.method
 
         method = Method.new(
           :classname => classname,
@@ -202,11 +250,10 @@ class Kefka
           :line => line
         )
 
-        if method_caller
-          @method_graph.add_edge(method_caller,method)
-        end
+        @line_graph.add_edge(called_from.dup,method)
+        @method_graph.add_edge(caller_method,method)
 
-        @callstack << method
+        @callstack << Call.new(:method => method, :line => line)
       when "line"
         # skip variables that should not be tracked
         # 1. anything in current lib (i.e __FILE__)
@@ -216,6 +263,10 @@ class Kefka
         #       vars in that program
         #current_method = @callstack.last
 
+        # update callstack last method's line
+        if call = @callstack.last
+          call.line = line
+        end
         # given current file & line, determine what method I am in
 
         method = @method_graph.vertices
@@ -226,7 +277,7 @@ class Kefka
         if method
           line_source = method.source_at_line(line)
 
-          iseq_key = [file, line].join(":")
+          iseq_key = [id,file,line].join(":")
           @local_values[iseq_key] = get_values_of_locals_from_binding(binding, line_source)
         end
       when "return"
@@ -256,14 +307,14 @@ class Kefka
     end
 
 
-    def create_top_level_method(file)
+    def create_toplevel_method(file_path)
       method = Method.new(
-        :classname => "Object",
-        :id => "<main>",
-        :file => file,
+        :classname => "Toplevel",
+        :id => nil,
+        :file => file_path,
         :line => 1
       )
-      method.source = File.readlines(file).join
+      method.source = File.readlines(file_path).join
       return method
     end
 
